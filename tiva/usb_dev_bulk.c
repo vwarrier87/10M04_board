@@ -265,17 +265,10 @@ uint8_t JTAG_clock(uint32_t val)
 	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_4, val);
 	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,0);
 	//Delay of 10us
-	//SysCtlDelay(SysCtlClockGet()/10000);
-	//GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,32);
-	//delay();
-	//Delay of 10us
-	//SysCtlDelay(SysCtlClockGet()/10000);
-	//delay();
-	
-	delay();
+	SysCtlDelay(SysCtlClockGet()/(3*100000));
 	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,32);
-	delay();
-
+	//Delay of 10us
+	SysCtlDelay(SysCtlClockGet()/(3*100000));
 	if(GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_5) == GPIO_PIN_5)
 		return 1;
 	else
@@ -286,14 +279,10 @@ uint8_t JTAG_read()
 {
     GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,0);
     //Delay of 10us
-    //SysCtlDelay(SysCtlClockGet()/10000);
-    //GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,32);
-    //Delay of 10us
-    //SysCtlDelay(SysCtlClockGet()/10000);
-    delay();
+    SysCtlDelay(SysCtlClockGet()/(3*100000));
     GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,32);
-    delay();
-
+    //Delay of 10us
+    SysCtlDelay(SysCtlClockGet()/(3*100000));
     if(GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_5) == GPIO_PIN_5)
         return 1;
     else
@@ -538,6 +527,51 @@ if (state==0)
         volatile uint32_t i = 0;
         // go to reset state (that loads IDCODE into IR of all the devices)
         for(i=0; i<5; i++)
+            JTAG_clock(TMS);
+
+        // go to Shift-IR
+        JTAG_clock(0);
+        JTAG_clock(TMS);
+        JTAG_clock(TMS);
+        JTAG_clock(0);
+        JTAG_clock(0);
+
+
+        // IR is 10 bits long,
+        // there is only one device in the chain,
+        // and SAMPLE code = 0000000101b   0000000110b
+        JTAG_clock(0);
+        JTAG_clock(TDI);
+        JTAG_clock(TDI);
+        JTAG_clock(0);
+        JTAG_clock(0);
+        JTAG_clock(0);
+        JTAG_clock(0);
+        JTAG_clock(0);
+        JTAG_clock(0);
+        JTAG_clock(TMS);
+
+        // we are in Exit1-IR, go to Shift-DR
+        //JTAG_clock(TMS);
+        JTAG_clock(TMS);
+        JTAG_clock(TMS);
+        JTAG_clock(0);
+        JTAG_clock(0);
+
+
+        // and read the IDCODES
+        ui32by=33;
+        program_array[0]=100;
+        for(i=1;i<48;i++)
+        {
+            program_array[i] = JTAG_read();
+            program_array2[i] = program_array[i];
+        }
+        write_function(program_array,33);
+        /*
+        volatile uint32_t i = 0;
+        // go to reset state (that loads IDCODE into IR of all the devices)
+        for(i=0; i<5; i++)
             applyTMS(2);
 
         // go to Shift-IR
@@ -579,7 +613,7 @@ if (state==0)
         write_function(program_array,16);
 
         //printf("IDCODE for device %d is %08X\n", i+1, JTAG_read(32));
-
+        */
         }
     }
     else if(state==1)

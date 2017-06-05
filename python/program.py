@@ -237,7 +237,7 @@ try:
 	
 	dev.write(inEndPoint, 'Q', timeout)
 	time.sleep(sleeptime)
-	inn = dev.read(outEndPoint, 16, timeout) 
+	inn = dev.read(outEndPoint, 40, timeout) 
 	if (inn[0] == 100):
 		print "JTAG Reg fn entered!!!"
 		print("No of devices is :")
