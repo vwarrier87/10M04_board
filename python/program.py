@@ -212,6 +212,40 @@ try:
 	else:
 		print "Something is wrong. Wrong output from uC!!!"
 		sys.exit(1)
+	
+	dev.write(inEndPoint, 'P', timeout)
+	time.sleep(sleeptime)
+	inn = dev.read(outEndPoint, 16, timeout) 
+	if (inn[0] == 100):
+		print "JTAG fn entered!!!"
+		print("No of devices is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+	dev.write(inEndPoint, 'I', timeout)
+	time.sleep(sleeptime)
+	inn = dev.read(outEndPoint, 40, timeout) 
+	if (inn[0] == 100):
+		print "JTAG ID fn entered!!!"
+		print("The device ID is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+	
+	dev.write(inEndPoint, 'Q', timeout)
+	time.sleep(sleeptime)
+	inn = dev.read(outEndPoint, 16, timeout) 
+	if (inn[0] == 100):
+		print "JTAG Reg fn entered!!!"
+		print("No of devices is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
 except:
 	for i in range(30):
 		dev.reset()
@@ -220,87 +254,7 @@ except:
 	print "Still doesn't run? Press the RESET button on uC"
 	sys.exit(1)	
 
-for comm in input_file.readlines():
-	line_num += 1
 
-	# taking care of single-line comments
-	if comm[0] == '#': continue
-	comm = comm.replace('\n','')
-
-	#Display the command on screen
-	print "\n#------ Command - ",line_num,":",comm,"------#\n"
-	command = comm.split(' ')
-	
-	#Check for the command	
-	if command[0] == "SDR":
-		in_pins = int(command[1])
-		out_pins = int(command[3])
-		# num of hex letters expected to be sent to the uC
-		in_sample = int((in_pins-1)/4) + 1 
-		#print out_pins
-		temp_in = command[2].rstrip(')').split('(')
-		# the following command is needed to handle unscrupulous data by the user
-		temp_in[1] = temp_in[1][len(temp_in[1])-in_sample:]
-
-		if (device == 'ptx'):
-			out_sample = int((out_pins-1)/8) + 1
-			data_in = toByte(temp_in[1], in_pins)
-			data_in_reverse = data_in[::-1]
-			temp_out = command[4].rstrip(')').split('(')
-			expct_out = toBin(temp_out [1], out_pins)
-			temp_mask = command[5].split(')')[0].split('(')
-			mask = toBin(temp_mask [1], out_pins)
-			mask_int = int(temp_mask[1],16)
-		else:
-			# num of bytes expected from the uC	
-			out_sample=int((out_pins-1)/4)+1
-			data_in_reverse = temp_in[1]
-			temp_out = command[4].rstrip(')').split('(')
-			expct_out = temp_out[1]
-			temp_mask = command[5].split(')')[0].split('(') 
-			mask = int(temp_mask[1],16)
-			mask_int=temp_mask[1][0:-1]
-
-		sendDUTInput(in_pins, out_pins, data_in_reverse)
-			
-		print "Successfully entered the input.."	
-
-		if (outvector_verify != 0):
-			outvector_verify = 0
-			checkDUTOutput(out_sample, last_mask, last_expct_out)
-		
-	elif command[0]=="RUNTEST":
-		dev.write(inEndPoint,'A',timeout)
-		time.sleep(sleeptime)
-
-		# sleep for time given by user
-		time_sec = int(command[1])
-		time.sleep(time_sec*0.001)
-    
-		if (( mask_int != 0 ) and ( mask != 0 )):
-			outvector_verify = 1
-			last_expct_out = expct_out
-			if (device == 'ptx'):
-				last_mask = mask
-			else:
-				last_mask = mask_int
-		
-	else :
-		print "Error : Unknown command on line ", line_num, ", skipping.."
-
-# for the last SDR
-if (outvector_verify != 0):
-	# repeating the last SDR as a dummy input
-	sendDUTInput(in_pins, out_pins, data_in_reverse)
-	# checking the DUT output for last SDR
-	checkDUTOutput(out_sample, last_mask, last_expct_out)
-
-if (success_achieved == success_checks):
-	print "OK. All Test Cases Passed."
-else:
-	print "NOT OK. Check Output file for incorrect outputs."
-input_file.close()
-output_file.close()
 
 # flush the scan chain
 dev.write(inEndPoint, 'Z', timeout)
