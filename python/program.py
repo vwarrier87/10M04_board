@@ -198,6 +198,19 @@ def sendDUTInput(in_pins, out_pins, data_in):
 		dev.write(inEndPoint,chr(out_pins),timeout)
 		dev.write(inEndPoint,data_in,timeout)
 
+def JTAG_readregister(addr):
+	dev.write(inEndPoint, 'Q', timeout)
+	time.sleep(sleeptime)
+	inn = dev.read(outEndPoint, 40, timeout) 
+	if (inn[0] == 100):
+		print "JTAG Reg fn entered!!!"
+		print("Data returned is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+	
+
 	
 dev.reset()
 

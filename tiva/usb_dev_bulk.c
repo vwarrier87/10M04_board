@@ -321,6 +321,7 @@ uint8_t array2[12]={'W','R','O','N','G','R','I','G','H','T','H','I'};
 uint32_t ui32ReadIndex=0,ui32Loop=0;
 uint32_t ui32WriteIndex=0, ui32Count=0;
 uint8_t state=0;
+uint8_t program_state=0, JTAG_state=0;
 void read_function()
 {
 	uint32_t m=0;
@@ -407,215 +408,169 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
 
 
   
-if (state==0)
-{
-	if (temp[0]=='T')
-	        {
-	        	state=0;
-	        	Sys_config_cpld();
-	        	ui32by=1;
-	        	array1[0]=170;
-	        	write_function(array1,ui32by);
-	        }
-
-	 else if (temp[0] == 'Z')
-	        { 	// end of transaction
-				state=0;
-				//Sys_config_cpld();
-				ui32by=1;
-				array1[0]=85;
-				write_function(array1,ui32by);
-	        }
-	else
-    if (temp[0]=='L')
+    if (state==0)
     {
-    			state=1;
-    	        GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4, 0);
-    	        applyTMS(2);
-    	        applyTMS(0);
-    	        //applyTMS(0);
-    }
-    else if (temp[0]=='A')
-         {
-        		state=0;
-    			applyTMS(2);
-    			applyTMS(2);
-         }
-    else if (temp[0]=='S')
-    {
-    			//strcpy(state,"SOUT");
-    	        GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4, 0);
-    	        ui32by=temp_in[3];
-    	        write_function(out_reg,ui32by);
-    }
-    else if (temp[0]=='P')
-    {
-        volatile uint32_t i = 0;
-
-        // go to reset state
-        for(i=0; i<5; i++)
-            applyTMS(2);
-
-        // go to Shift-IR
-        applyTMS(0);
-        applyTMS(2);
-        applyTMS(2);
-        applyTMS(0);
-        applyTMS(0);
-
-		//for(i=0; i<2; i++)
-		//    applyTDI(1);
-
-		applyTMS(2);  // last bit needs to have TMS active, to exit shift-IR
-
-		// we are in Exit1-IR, go to Shift-DR
-		applyTMS(2);
-        applyTMS(2);
-        applyTMS(0);
-        applyTMS(0);
-
-		// Send plenty of zeros into the DR registers to flush them
-		for(i=0; i<10; i++)
-		    applyTDI(0);
-
-		// now send ones until we receive one back
-		for(i=0; i<20; i++)
-			if(scan_out_in(1) == 0x20)
-				break;
-		//UARTprintf("There are %d device(s) in the JTAG chain\n", i);
-		program_array[0]=100;
-		program_array[1]=(uint8_t)i;
-        for(i=2;i<48;i++)
+        if (temp[0]=='T')
         {
-            if(i%2 == 0)
-                program_array[i] = scan_out_in(1);
-            else
+            state=0;
+            Sys_config_cpld();
+            ui32by=1;
+            array1[0]=170;
+            write_function(array1,ui32by);
+        }
+
+        else if (temp[0] == 'Z')
+        { 	// end of transaction
+            state=0;
+            //Sys_config_cpld();
+            ui32by=1;
+            array1[0]=85;
+            write_function(array1,ui32by);
+        }
+        else if (temp[0]=='L')
+        {
+            state=1;
+            GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4, 0);
+            applyTMS(2);
+            applyTMS(0);
+            //applyTMS(0);
+        }
+        else if (temp[0]=='A')
+        {
+            state=0;
+            applyTMS(2);
+            applyTMS(2);
+        }
+        else if (temp[0]=='S')
+        {
+            //strcpy(state,"SOUT");
+            GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4, 0);
+            ui32by=temp_in[3];
+            write_function(out_reg,ui32by);
+        }
+        else if (temp[0]=='P')
+        {
+            volatile uint32_t i = 0;
+
+            for(i=0; i<5; i++)
+                JTAG_clock(TMS);
+
+            // go to Shift-IR
+            JTAG_clock(0);
+            JTAG_clock(TMS);
+            JTAG_clock(TMS);
+            JTAG_clock(0);
+            JTAG_clock(0);
+
+            for(i=0; i<499; i++)
+                JTAG_clock(TDI);
+
+            JTAG_clock(TDI | TMS);  // last bit needs to have TMS active, to exit shift-IR
+
+            // we are in Exit1-IR, go to Shift-DR
+            JTAG_clock(TMS);
+            JTAG_clock(TMS);
+            JTAG_clock(0);
+            JTAG_clock(0);
+
+            // Send plenty of zeros into the DR registers to flush them
+            for(i=0; i<500; i++)
+                JTAG_clock(TDI);
+
+            // now send ones until we receive one back
+            for(i=0; i<20; i++)
+                if(JTAG_read())
+                    break;
+
+            program_array[0]=100;
+            program_array[1]=(uint8_t)i;
+            for(i=2;i<48;i++)
+            {
+                if(i%2 == 0)
+                    program_array[i] = JTAG_clock(TDI);
+                else
+                    program_array[i] = JTAG_clock(0);
+                program_array2[i] = program_array[i];
+            }
+            write_function(program_array,16);
+        }
+
+        else if (temp[0]=='I')
+        {
+            volatile uint32_t i = 0;
+            // go to reset state (that loads IDCODE into IR of all the devices)
+            for(i=0; i<5; i++)
+                applyTMS(2);
+
+            // go to Shift-DR
+            applyTMS(0);
+            applyTMS(2);
+            applyTMS(0);
+            applyTMS(0);
+
+            // and read the IDCODES
+            ui32by=33;
+            program_array[0]=100;
+            for(i=1;i<48;i++)
+            {
                 program_array[i] = scan_out_in(0);
-            program_array2[i] = program_array[i];
+                program_array2[i] = program_array[i];
+            }
+            write_function(program_array,34);
+
+            //printf("IDCODE for device %d is %08X\n", i+1, JTAG_read(32));
+
         }
-        write_function(program_array,16);
-	}
-		
-    else if (temp[0]=='I')
-    {
-        volatile uint32_t i = 0;
-        // go to reset state (that loads IDCODE into IR of all the devices)
-        for(i=0; i<5; i++)
-            applyTMS(2);
-
-        // go to Shift-DR
-        applyTMS(0);
-        applyTMS(2);
-        applyTMS(0);
-        applyTMS(0);
-
-        // and read the IDCODES
-        ui32by=33;
-        program_array[0]=100;
-        for(i=1;i<48;i++)
+        else if (temp[0]=='Q')
         {
-            program_array[i] = scan_out_in(0);
-            program_array2[i] = program_array[i];
-        }
-        write_function(program_array,34);
+            //switch(program
+            volatile uint32_t i = 0;
+            // go to reset state (that loads IDCODE into IR of all the devices)
+            for(i=0; i<5; i++)
+                JTAG_clock(TMS);
 
-        //printf("IDCODE for device %d is %08X\n", i+1, JTAG_read(32));
+            // go to Shift-IR
+            JTAG_clock(0);
+            JTAG_clock(TMS);
+            JTAG_clock(TMS);
+            JTAG_clock(0);
+            JTAG_clock(0);
 
-    }
-    else if (temp[0]=='Q')
-    {
-        volatile uint32_t i = 0;
-        // go to reset state (that loads IDCODE into IR of all the devices)
-        for(i=0; i<5; i++)
+
+            // IR is 10 bits long,
+            // there is only one device in the chain,
+            // and SAMPLE code =  0000000110b
+            JTAG_clock(0);
+            JTAG_clock(TDI);
+            JTAG_clock(TDI);
+            JTAG_clock(0);
+            JTAG_clock(0);
+            JTAG_clock(0);
+            JTAG_clock(0);
+            JTAG_clock(0);
+            JTAG_clock(0);
             JTAG_clock(TMS);
 
-        // go to Shift-IR
-        JTAG_clock(0);
-        JTAG_clock(TMS);
-        JTAG_clock(TMS);
-        JTAG_clock(0);
-        JTAG_clock(0);
+            // we are in Exit1-IR, go to Shift-DR
+            //JTAG_clock(TMS);
+            JTAG_clock(TMS);
+            JTAG_clock(TMS);
+            JTAG_clock(0);
+            JTAG_clock(0);
 
 
-        // IR is 10 bits long,
-        // there is only one device in the chain,
-        // and SAMPLE code = 0000000101b   0000000110b
-        JTAG_clock(0);
-        JTAG_clock(TDI);
-        JTAG_clock(TDI);
-        JTAG_clock(0);
-        JTAG_clock(0);
-        JTAG_clock(0);
-        JTAG_clock(0);
-        JTAG_clock(0);
-        JTAG_clock(0);
-        JTAG_clock(TMS);
-
-        // we are in Exit1-IR, go to Shift-DR
-        //JTAG_clock(TMS);
-        JTAG_clock(TMS);
-        JTAG_clock(TMS);
-        JTAG_clock(0);
-        JTAG_clock(0);
-
-
-        // and read the IDCODES
-        ui32by=33;
-        program_array[0]=100;
-        for(i=1;i<48;i++)
-        {
-            program_array[i] = JTAG_read();
-            program_array2[i] = program_array[i];
-        }
-        write_function(program_array,33);
-        /*
-        volatile uint32_t i = 0;
-        // go to reset state (that loads IDCODE into IR of all the devices)
-        for(i=0; i<5; i++)
-            applyTMS(2);
-
-        // go to Shift-IR
-        applyTMS(0);
-        applyTMS(2);
-        applyTMS(2);
-        applyTMS(0);
-        applyTMS(0);
-
-        // IR is 10 bits long,
-        // there is only one device in the chain,
-        // and SAMPLE code = 0000000101b   0000000110b
-        applyTDI(0);
-        applyTDI(1);
-        applyTDI(1);
-        applyTDI(0);
-        applyTDI(0);
-        applyTDI(0);
-        applyTDI(0);
-        applyTDI(0);
-        applyTDI(0);
-        //applyTDI(0);
-
-        // we are in Exit1-IR, go to Shift-DR
-        applyTMS(2);
-        applyTMS(2);
-        applyTMS(2);
-        applyTMS(0);
-        applyTMS(0);
-
-        // and read the IDCODES
-        ui32by=33;
-        program_array[0]=100;
-        for(i=1;i<48;i++)
-        {
-            program_array[i] = scan_out_in(0);
-            program_array2[i] = program_array[i];
-        }
-        write_function(program_array,16);
-
-        //printf("IDCODE for device %d is %08X\n", i+1, JTAG_read(32));
-        */
+            // and read the IDCODES
+            ui32by=33;
+            program_array[0]=100;
+            for(i=1;i<48;i++)
+            {
+                program_array[i] = JTAG_read();
+                program_array2[i] = program_array[i];
+            }
+            write_function(program_array,33);
         }
     }
+
     else if(state==1)
     {
 		state=2;
@@ -685,6 +640,7 @@ if (state==0)
 		state=0;
 
     }
+
 
     //DEBUG_PRINT("Wrote %d bytes\n", ui32Count);
 
