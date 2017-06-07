@@ -6,6 +6,7 @@
 #include "jtag.h"
 
 
+uint32_t jeetaaaggg = 0;
 
 uint8_t JTAG_clock(uint32_t val)
 {
@@ -38,15 +39,18 @@ uint8_t JTAG_read()
 
 void jtag_ir_write(uint8_t ir_len, uint32_t instruction)
 {
-    volatile uint8_t i=0;
-    volatile uint32_t mask=0;
+    volatile uint8_t i=0,j=0;
+    volatile uint32_t mask=0, instr = 0, k=0;
+
+    instr = instruction;
 
     for(i=0;i<ir_len;i++)
     {
         mask = 1<<i;
+        k = instr & mask ;
         if(i == ir_len-1)
         {
-            if(instruction & mask == mask)
+            if(k == mask)
             {
                 JTAG_clock(TDI | TMS);
             }
@@ -57,7 +61,7 @@ void jtag_ir_write(uint8_t ir_len, uint32_t instruction)
         }
         else
         {
-            if(instruction & mask == mask)
+            if(k == mask)
             {
                 JTAG_clock(TDI);
             }
@@ -67,6 +71,7 @@ void jtag_ir_write(uint8_t ir_len, uint32_t instruction)
             }
         }
     }
+
 }
 
 

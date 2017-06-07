@@ -493,38 +493,9 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
             volatile uint32_t i = 0;
             // go to reset state (that loads IDCODE into IR of all the devices)
 
-            for(i=0; i<5; i++)
-                JTAG_clock(TMS);
-
-            // go to Shift-IR
-            JTAG_clock(0);
-            JTAG_clock(TMS);
-            JTAG_clock(TMS);
-            JTAG_clock(0);
-            JTAG_clock(0);
-
-
-            // IR is 10 bits long,
-            // there is only one device in the chain,
-            // and SAMPLE code =  0000000110b
-            JTAG_clock(0);
-            JTAG_clock(TDI);
-            JTAG_clock(TDI);
-            JTAG_clock(0);
-            JTAG_clock(0);
-            JTAG_clock(0);
-            JTAG_clock(0);
-            JTAG_clock(0);
-            JTAG_clock(0);
-            JTAG_clock(TMS);
-
-            // we are in Exit1-IR, go to Shift-DR
-            //JTAG_clock(TMS);
-            JTAG_clock(TMS);
-            JTAG_clock(TMS);
-            JTAG_clock(0);
-            JTAG_clock(0);
-
+            jtag_set_state(IRSHIFT);
+            jtag_ir_write(10, 0x00000006);
+            jtag_change_state(IREXIT1,DRSHIFT);
 
             // and read the IDCODES
             ui32by=33;
@@ -554,12 +525,9 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
 		hex_OUTPIN = (temp[0]-1)/4;
 		temp_in[3]=hex_OUTPIN+1;
 		GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 32);
-
-
     }
     else if(state==3)
     {
-
         scanned_out_bits=0;
 		while (hex_OUTPIN>=0 )
 		{		binary[0]=0;binary[1]=0;binary[2]=0;binary[3]=0;
@@ -609,29 +577,27 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
     }
     else if(state == 4)
     {
-        uint16_t ir_addr_len=0, ir_data_len=0, dr_addr_len=0, dr_data_len=0;
-        uint16_t ir_addr_bytes=0, ir_data_bytes=0, dr_addr_bytes=0, dr_data_bytes=0;
+        uint8_t ir_len=0, dr_len=0;
+        uint32_t ir_instruction=0;
 
         switch(temp[0])
         {
         case 0:
+            jtag_set_state(temp[1]);
             break;
         case 1:
-            ir_addr_len = temp[1] + (temp[2] << 8);
-            ir_data_len = temp[3] + (temp[4] << 8);
-
-            ir_addr_bytes = ir_addr_len/8;
-            if(ir_addr_len > ir_addr_bytes*8)
-                ir_addr_bytes++;
-
-            ir_data_bytes = ir_data_len/8;
-            if(ir_data_len > ir_data_bytes*8)
-                ir_data_bytes++;
-
-            //jtag_ir_write(ir_addr_len, ir_data_len, ir_addr_bytes, ir_data_bytes);
-
+            jtag_change_state(temp[1], temp[2]);
             break;
         case 2:
+            ir_len = temp[1];
+            ir_instruction = temp[2] + (temp[3] << 8) +  (temp[4] << 16) + (temp[5] << 24);
+
+            jtag_ir_write(ir_len, ir_instruction);
+
+            break;
+        case 3:
+            ir_len = temp[1];
+            /*
             dr_addr_len = temp[1] + (temp[2] << 8);
             dr_data_len = temp[3] + (temp[4] << 8);
 
@@ -642,7 +608,8 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
             dr_data_bytes = dr_data_len/8;
             if(dr_data_len > dr_data_bytes*8)
                 dr_data_bytes++;
-
+            */
+            break;
 
         default:
             break;

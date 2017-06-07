@@ -270,10 +270,10 @@ except:
 
 
 # flush the scan chain
-dev.write(inEndPoint, 'Z', timeout)
-time.sleep(sleeptime)
-inn = dev.read(outEndPoint, 16, timeout) 
-if (inn[0] == 85):
-	print "Transaction Complete."
-else:
-	print "uC is not responding!!!"
+#dev.write(inEndPoint, 'Z', timeout)
+#time.sleep(sleeptime)
+#inn = dev.read(outEndPoint, 16, timeout) 
+#if (inn[0] == 85):
+#	print "Transaction Complete."
+#else:
+#	print "uC is not responding!!!"

@@ -7,11 +7,11 @@
 #define DRPAUSE 6
 #define DREXIT2 7
 #define DRUPDATE 8
-#define IRSELEST 9
+#define IRSELECT 9
 #define IRCAPTURE 10
 #define IRSHIFT 11
-#define IRPAUSE 12
-#define IREXIT1 13
+#define IREXIT1 12
+#define IRPAUSE 13
 #define IREXIT2 14
 #define IRUPDATE 15
 
