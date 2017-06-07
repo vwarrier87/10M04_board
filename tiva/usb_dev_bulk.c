@@ -45,6 +45,7 @@
 #include "utils/uartstdio.h"
 #include "utils/ustdlib.h"
 #include "usb_bulk_structs.h"
+#include "jtag.h"
 
 //*****************************************************************************
 //
@@ -135,7 +136,25 @@ uint32_t g_ui32UARTRxErrors = 0;
 #define COMMAND_PACKET_RECEIVED 0x00000001
 #define COMMAND_STATUS_UPDATE   0x00000002
 
+
 volatile uint32_t g_ui32Flags = 0;
+
+char bin_eq[4] = "0000";
+uint8_t temp_in[4], temp_out[21];
+int hex_OUTPIN;
+
+uint8_t temp[BULK_BUFFER_SIZE],array1[12]={'A','B','C','1','0','7','8','9','9','5','8','5'};
+uint8_t program_array[50] = {0};
+uint32_t program_array2[50] = {0};
+uint8_t array2[12]={'W','R','O','N','G','R','I','G','H','T','H','I'};
+uint32_t ui32ReadIndex=0,ui32Loop=0;
+uint32_t ui32WriteIndex=0, ui32Count=0;
+uint8_t state=0;
+uint8_t program_state=0, JTAG_state=0;
+
+
+uint32_t byte_to_int32(uint8_t * start);
+void write_function(uint8_t *temp2, uint32_t ui32Bytes);
 
 //*****************************************************************************
 //
@@ -173,6 +192,13 @@ SysTickIntHandler(void)
     //
     g_ui32SysTickCount++;
 }
+
+uint32_t byte_to_int32(uint8_t * start)
+{
+    return *start + (*(start+1) << 8) + (*(start+2) << 16) + (*(start+3) << 24);
+}
+
+
 
 //*****************************************************************************
 //
@@ -224,9 +250,9 @@ for(ui32delay_more = 0; ui32delay_more < 150000; ui32delay_more++)
 	for(ui32delay_more2 = 0; ui32delay_more2 < 5; ui32delay_more2++);
         }
 }
-void applyTMS(int TMS)
+void applyTMS(int tms)
 {
-	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_1,TMS);
+	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_1,tms);
 	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,0);
 	delay();
 	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,32);
@@ -234,10 +260,10 @@ void applyTMS(int TMS)
 }
 
 
-uint8_t scan_out_in(int TDI)
+uint8_t scan_out_in(int tdi)
 {
 	uint8_t TDO_read = (uint8_t)GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_5);
-	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0,TDI);
+	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0,tdi);
 	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_1,0);
 	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,0);
 	delay();
@@ -246,9 +272,9 @@ uint8_t scan_out_in(int TDI)
 	return TDO_read;
 }
 
-void applyTDI(int TDI)
+void applyTDI(int tdi)
 {
-	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0,TDI);
+	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0,tdi);
 	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_1,0);
 	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,0);
 	delay();
@@ -256,40 +282,6 @@ void applyTDI(int TDI)
 	delay();
 }
 
-#define TMS 0x02		//Corresponds to a 1 at pin B1
-#define TDI 0x01		//Corresponds to a 1 at pin B0
-#define TRST 0x10		//Corresponds to a 1 at pin B4
-
-uint8_t JTAG_clock(uint32_t val)
-{
-	GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_4, val);
-	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,0);
-	//Delay of 10us
-	SysCtlDelay(SysCtlClockGet()/(3*100000));
-	GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,32);
-	//Delay of 10us
-	SysCtlDelay(SysCtlClockGet()/(3*100000));
-	if(GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_5) == GPIO_PIN_5)
-		return 1;
-	else
-		return 0;
-}
-
-uint8_t JTAG_read()
-{
-    GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,0);
-    //Delay of 10us
-    SysCtlDelay(SysCtlClockGet()/(3*100000));
-    GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5,32);
-    //Delay of 10us
-    SysCtlDelay(SysCtlClockGet()/(3*100000));
-    if(GPIOPinRead(GPIO_PORTB_BASE, GPIO_PIN_5) == GPIO_PIN_5)
-        return 1;
-    else
-        return 0;
-}
-
-char bin_eq[4] = "0000";
 void hextobin(uint8_t hexaDecimal)
 {
     switch(hexaDecimal)
@@ -314,14 +306,7 @@ void hextobin(uint8_t hexaDecimal)
 	}
 }
 
-uint8_t temp[BULK_BUFFER_SIZE],array1[12]={'A','B','C','1','0','7','8','9','9','5','8','5'};
-uint8_t program_array[50] = {0};
-uint32_t program_array2[50] = {0};
-uint8_t array2[12]={'W','R','O','N','G','R','I','G','H','T','H','I'};
-uint32_t ui32ReadIndex=0,ui32Loop=0;
-uint32_t ui32WriteIndex=0, ui32Count=0;
-uint8_t state=0;
-uint8_t program_state=0, JTAG_state=0;
+
 void read_function()
 {
 	uint32_t m=0;
@@ -339,9 +324,6 @@ void read_function()
            ui32Loop--;
        }
 }
-
-
-
 
 void write_function(uint8_t *temp2, uint32_t ui32Bytes)
 {
@@ -364,8 +346,7 @@ void write_function(uint8_t *temp2, uint32_t ui32Bytes)
 		}
 	USBBufferDataWritten(&g_sTxBuffer, byte);
 }
-uint8_t temp_in[4], temp_out[21];
-int hex_OUTPIN;
+
 static uint32_t
 EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
                   uint32_t ui32NumBytes)
@@ -452,27 +433,12 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
         {
             volatile uint32_t i = 0;
 
-            for(i=0; i<5; i++)
-                JTAG_clock(TMS);
-
-            // go to Shift-IR
-            JTAG_clock(0);
-            JTAG_clock(TMS);
-            JTAG_clock(TMS);
-            JTAG_clock(0);
-            JTAG_clock(0);
+            jtag_set_state(IRSHIFT);
 
             for(i=0; i<499; i++)
                 JTAG_clock(TDI);
 
-            JTAG_clock(TDI | TMS);  // last bit needs to have TMS active, to exit shift-IR
-
-            // we are in Exit1-IR, go to Shift-DR
-            JTAG_clock(TMS);
-            JTAG_clock(TMS);
-            JTAG_clock(0);
-            JTAG_clock(0);
-
+            jtag_change_state(IRSHIFT,DRSHIFT);
             // Send plenty of zeros into the DR registers to flush them
             for(i=0; i<500; i++)
                 JTAG_clock(TDI);
@@ -526,6 +492,7 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
             //switch(program
             volatile uint32_t i = 0;
             // go to reset state (that loads IDCODE into IR of all the devices)
+
             for(i=0; i<5; i++)
                 JTAG_clock(TMS);
 
@@ -639,6 +606,47 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
 		scanned_out_bits=0;
 		state=0;
 
+    }
+    else if(state == 4)
+    {
+        uint16_t ir_addr_len=0, ir_data_len=0, dr_addr_len=0, dr_data_len=0;
+        uint16_t ir_addr_bytes=0, ir_data_bytes=0, dr_addr_bytes=0, dr_data_bytes=0;
+
+        switch(temp[0])
+        {
+        case 0:
+            break;
+        case 1:
+            ir_addr_len = temp[1] + (temp[2] << 8);
+            ir_data_len = temp[3] + (temp[4] << 8);
+
+            ir_addr_bytes = ir_addr_len/8;
+            if(ir_addr_len > ir_addr_bytes*8)
+                ir_addr_bytes++;
+
+            ir_data_bytes = ir_data_len/8;
+            if(ir_data_len > ir_data_bytes*8)
+                ir_data_bytes++;
+
+            //jtag_ir_write(ir_addr_len, ir_data_len, ir_addr_bytes, ir_data_bytes);
+
+            break;
+        case 2:
+            dr_addr_len = temp[1] + (temp[2] << 8);
+            dr_data_len = temp[3] + (temp[4] << 8);
+
+            dr_addr_bytes = dr_addr_len/8;
+            if(dr_addr_len > dr_addr_bytes*8)
+                dr_addr_bytes++;
+
+            dr_data_bytes = dr_data_len/8;
+            if(dr_data_len > dr_data_bytes*8)
+                dr_data_bytes++;
+
+
+        default:
+            break;
+        }
     }
 
 
