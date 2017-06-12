@@ -259,6 +259,34 @@ try:
 		print "Something is wrong with JTAG!!!"
 		sys.exit(1)
 
+	# Writing J will put the TIVA into program state
+	#To exit, you have to write 10 into it(as first
+	#character of trasnmission)
+	dev.write(inEndPoint, 'J', timeout)
+	time.sleep(sleeptime)
+	inn = dev.read(outEndPoint, 4, timeout) 
+	if (inn[0] == 100):
+		print("Program mode entered")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+	#dev.write(inEndPoint, 'M', timeout)
+	#time.sleep(sleeptime)
+	
+	dev.write(inEndPoint, '9', timeout)
+	time.sleep(sleeptime)
+
+	#inn = dev.read(outEndPoint, 40, timeout) 
+	if (inn[0] == 100):
+		print("TIVA back in Default mode!!!")
+		print("Program mode exited!!!")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
 except:
 	for i in range(30):
 		dev.reset()

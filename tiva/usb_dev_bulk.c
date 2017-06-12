@@ -387,8 +387,6 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
     read_function();
     GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_4, 0);
 
-
-  
     if (state==0)
     {
         if (temp[0]=='T')
@@ -507,6 +505,13 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
             }
             write_function(program_array,33);
         }
+        else if (temp[0]=='J')
+        {
+            state=4;
+            program_array[0] = 100;
+            program_array[1] = state;
+            write_function(program_array,2);
+        }
     }
 
     else if(state==1)
@@ -577,25 +582,26 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
     }
     else if(state == 4)
     {
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, GPIO_PIN_1);
         uint8_t ir_len=0, dr_len=0;
         uint32_t ir_instruction=0;
 
         switch(temp[0])
         {
-        case 0:
+        case '0':
             jtag_set_state(temp[1]);
             break;
-        case 1:
+        case '1':
             jtag_change_state(temp[1], temp[2]);
             break;
-        case 2:
+        case '2':
             ir_len = temp[1];
             ir_instruction = temp[2] + (temp[3] << 8) +  (temp[4] << 16) + (temp[5] << 24);
 
             jtag_ir_write(ir_len, ir_instruction);
 
             break;
-        case 3:
+        case '3':
             ir_len = temp[1];
             /*
             dr_addr_len = temp[1] + (temp[2] << 8);
@@ -611,9 +617,25 @@ EchoNewDataToHost(tUSBDBulkDevice *psDevice, uint8_t *pui8Data,
             */
             break;
 
+        case '9':
+            state=0;
+            program_array[0] = 100;
+            write_function(program_array,1);
+            break;
+
         default:
+            //state=0;
+            //program_array[0] = 100;
+            //program_array[1] = state;
+            //write_function(program_array,2);
             break;
         }
+    }
+    else
+    {
+        program_array[0] = 100;
+        program_array[1] = state;
+        write_function(program_array,2);
     }
 
 
@@ -660,7 +682,7 @@ TxHandler(void *pvCBData, uint32_t ui32Event, uint32_t ui32MsgValue,
     //
     // Dump a debug message.
     //
-    DEBUG_PRINT("TX complete %d\n", ui32MsgValue);
+    //DEBUG_PRINT("TX complete %d\n", ui32MsgValue);
 
     return(0);
 }
