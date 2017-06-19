@@ -112,7 +112,7 @@ def JTAG_set_frequency(frequency):
 	print("Set frequency command: " + str(cmd))
 		
 def JTAG_exit_program_mode():
-	cmd = array.array('B', [3])
+	cmd = array.array('B', [9])
 	print("Exit program command: " + str(cmd))
 
 def parse_svf(file):
