@@ -28,14 +28,11 @@ print("Scan chain v3.0\nWadhwani Electronics Laboratory, IIT Bombay\n")
 
 
 # Check for the proper input format
-if len(sys.argv) != 3 :
-	sys.stdout.write("Error : The correct format is sudo python scan.py <svf file> <output file> \n")
+if len(sys.argv) != 2:
+	sys.stdout.write("Error : The correct format is sudo python scan.py <svf file> \n")
 	sys.exit(1)
 else:
 	input_file = open(sys.argv[1],"r")
-	output_file = open(sys.argv[2],"w")
-	output_file.write("Expected Output    Received Output   Remarks\n")
-	output_file.write("============================================\n")
 
 
 
@@ -69,6 +66,7 @@ sir_mask_bytearray = bytearray.fromhex('00')
 sir_smask_bytearray = bytearray.fromhex('00')
 
 jtag_run_state = svf_state_path_arguments.index("IDLE")
+jtag_run_endstate = svf_state_path_arguments.index("IDLE")
 
 def JTAG_start_program_mode():
 	# Writing J will put the TIVA into program state
@@ -79,54 +77,64 @@ def JTAG_start_program_mode():
 	
 def JTAG_set_state(state):
 	cmd = array.array('B', [0,state])
-	print(cmd)
+	print("Set state command: " + str(cmd))
 
 def JTAG_chage_state(curr_state, next_state):
 	cmd = array.array('B', [1,curr_state,next_state])
-	print(cmd)
+	print("Change state command: " + str(cmd))
 
 def JTAG_shift_ir(ir_length, ir_addr):
 	a = [ir_length & 0xff]
+	if len(ir_addr) <4:
+		 for i in range(len(ir_addr), 4):
+			 ir_addr.append(0)
 	#b = [(ir_addr >> i & 0xff) for i in (0,8,16,24)]
 	cmd = array.array('B', [2] + a + ir_addr)
-	print(cmd)
+	print("Shift IR command: " + str(cmd))
 	
 def JTAG_read_dr(dr_length, dr_num_bytes):
 	cmd = array.array('B', [3] + dr_length + dr_num_bytes)
-	print(cmd)
+	print("Read DR command: " + str(cmd))
 	
 def JTAG_runtest(clock_num_times):
 	a = [(clock_num_times >> i & 0xff) for i in (0,8,16,24)]
 	cmd = array.array('B', [4] + a)
-	print(cmd)
+	print("Runtest command: " + str(cmd))
 	
-def JTAG_read_write_dr(dr_length, data, data_expected, num_bytes):
+def JTAG_read_write_dr(dr_length, data, data_expected, num_bytes, eom):
 	a = [(dr_length >> i & 0xff) for i in (0,8)]
-	cmd = array.array('B', [5] + a + data_expected + num_bytes + data )
-	print(cmd)
+	cmd = array.array('B', [5] + a + data_expected + num_bytes + data + eom )
+	print("Read Write DR command: " + str(cmd))
 
 def JTAG_set_frequency(frequency):
 	a = [(frequency >> i & 0xff) for i in (0,8,16,24)]
 	cmd = array.array('B', [5] + a)
-	print(cmd)
+	print("Set frequency command: " + str(cmd))
 		
 def JTAG_exit_program_mode():
 	cmd = array.array('B', [3])
-	print(cmd)
+	print("Exit program command: " + str(cmd))
 
 def parse_svf(file):
-	global sir_mask, sir_smask, sir_mask_bytearray, sdr_mask, sdr_smask, sdr_mask_bytearray, sir_smask_bytearray, sdr_smask_bytearray
+	global sir_mask, sir_smask, sir_mask_bytearray, sdr_mask, sdr_smask, sdr_mask_bytearray, \
+	sir_smask_bytearray, sdr_smask_bytearray, jtag_curr_state, jtag_run_endstate
 	lines = file.readlines()
-	line_no = 0
-	for line in lines:
+	line_no = -1
+	while line_no < len(lines) -1:
 		line_no +=1
 		#lines marked with ! are comments
-		if line[0] != '!':
-			line_contents = line.split(' ')
+		line = lines[line_no]
+		if lines[line_no][0] != '!':
+			line_contents = lines[line_no].split(' ')
 			#checking integrity of file. all lines end with ;
-			if not (';' in line_contents[-1]):
-				print("Error in svf file at line no " + str(line_no))
+			while not (';' in line):
+				line_no +=1
+				line += lines[line_no].replace("\t", "")
+				#print("Error in svf file at line no " + str(line_no))
 			#first word of line is the command
+			if line.find("\n") > -1 :
+				line = line.replace("\n", "")
+			line_contents = line.split(' ')
 			command = line_contents[0]
 			args = []
 			for text in line_contents:
@@ -134,7 +142,7 @@ def parse_svf(file):
 					if not (';' in text):
 						args.append(text)
 					else:
-						args.append(text[:-2])
+						args.append(text[:-1])
 			
 			#specifies the largest frequency the clock can support
 			if command == "FREQUENCY" :
@@ -176,8 +184,8 @@ def parse_svf(file):
 				if len(args) < 1:
 					 print("Error in svf file at line no " + str(line_no))
 				else :
+					print(line)
 					for i in range(0,len(args)):
-						print(i)
 						if i == 0:
 							JTAG_set_state(svf_state_path_arguments.index(args[0]))
 							jtag_curr_state = svf_state_path_arguments.index(args[0])
@@ -208,12 +216,17 @@ def parse_svf(file):
 						sdr_tdi = args[args.index("TDI") + 1][1:-1]
 					if "TDO" in args:
 						sdr_tdo = args[args.index("TDO") + 1][1:-1]
-				print(line)
-				print("Length " + str(sdr_length))
-				print("TDI " + str(sdr_tdi))
-				print("TDO" + str(sdr_tdo))
-				print("Mask " + str(sdr_mask))
-				print("Smask" + str(sdr_smask))
+				if len(line) < 500:
+					print(line)
+					print("Length " + str(sdr_length))
+					print("TDI " + str(sdr_tdi))
+					print("TDO " + str(sdr_tdo))
+					print("Mask " + str(sdr_mask))
+					print("Smask" + str(sdr_smask))
+				else:
+					print("Length " + str(sdr_length))
+					print("line too long")
+				
 				
 				if sdr_mask!= "" :
 					if len(sdr_mask) % 2 !=0 :
@@ -248,11 +261,18 @@ def parse_svf(file):
 				for i in range(0,len(sdr_tdi_bytearray)):
 					sdr_tdi_masked.append(sdr_tdi_bytearray[i])
 						
-				print(sdr_tdo_masked)
-				print(sdr_tdi_masked)
+				#print("Masked TDO : " + str(sdr_tdo_masked))
+				#print("Masked TDI : " + str(sdr_tdi_masked))
 				
 				JTAG_chage_state(jtag_curr_state, svf_state_path_arguments.index("DRSHIFT"))
-				JTAG_read_write_dr(sdr_length, sdr_tdi_masked, data_expected, [len(sdr_tdo_masked)])
+				eom=0
+				while len(sdr_tdi_masked) > 100:
+					JTAG_read_write_dr(800, sdr_tdi_masked[:100], data_expected, [100], [eom])
+					sdr_tdi_masked = sdr_tdi_masked[100:]
+					sdr_tdo_masked = sdr_tdo_masked[100:]
+					sdr_length -= 800
+				eom=1
+				JTAG_read_write_dr(sdr_length, sdr_tdi_masked, data_expected, [len(sdr_tdo_masked)], [eom])
 				JTAG_chage_state(svf_state_path_arguments.index("DREXIT1"),dr_end_state)
 				jtag_curr_state = dr_end_state
 				
@@ -318,8 +338,8 @@ def parse_svf(file):
 				for i in range(0,len(sir_tdi_bytearray)):
 					sir_tdi_masked.append(sir_tdi_bytearray[i])
 						
-				print(sir_tdo_masked)
-				print(sir_tdi_masked)
+				print("Masked TD0 : " + str(sir_tdo_masked))
+				print("Masked TDI : " + str(sir_tdi_masked))
 				
 				JTAG_chage_state(jtag_curr_state, svf_state_path_arguments.index("IRSHIFT"))
 				JTAG_shift_ir(sir_length, sir_tdi_masked)
@@ -331,7 +351,6 @@ def parse_svf(file):
 				run_clk = 0
 				min_time = 0
 				max_time = 0
-				end_state = 0
 				
 				if len(args) < 2:
 					 print("Error in svf file at line no " + str(line_no))
@@ -349,21 +368,21 @@ def parse_svf(file):
 					if "MAXIMUM" in args:
 						max_time = float(args[args.index("MAXIMUM") + 1])
 					if "ENDSTATE" in args:
-						end_state = svf_state_path_arguments.index(args[args.index("ENDSTATE") + 1])
+						jtag_run_endstate = svf_state_path_arguments.index(args[args.index("ENDSTATE") + 1])
 				print(line)	
 				print("Run State " + str(jtag_run_state))
 				print("Run Count " + str(run_count))
 				print("Run Clock " + str(run_clk))
 				print("Min TIme " + str(min_time))
 				print("Max Time " + str(max_time))
-				print("End State " + str(end_state))	
+				print("End State " + str(jtag_run_endstate))	
 				
 				if run_clk == 0 :
 					JTAG_chage_state(jtag_curr_state, jtag_run_state)
 					JTAG_runtest(run_count)
 					
-				if end_state != "":
-					JTAG_chage_state(jtag_run_state, end_state)
+				if jtag_run_endstate != -1:
+					JTAG_chage_state(jtag_run_state, jtag_run_endstate)
 				
 		
 parse_svf(input_file)
