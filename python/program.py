@@ -21,6 +21,8 @@ import usb.util
 import sys
 import time
 import subprocess
+import array
+import struct
 
 print"Scan chain v3.0\nWadhwani Electronics Laboratory, IIT Bombay\n"
 
@@ -198,20 +200,102 @@ def sendDUTInput(in_pins, out_pins, data_in):
 		dev.write(inEndPoint,chr(out_pins),timeout)
 		dev.write(inEndPoint,data_in,timeout)
 
-def JTAG_readregister(addr):
-	dev.write(inEndPoint, 'Q', timeout)
-	time.sleep(sleeptime)
-	inn = dev.read(outEndPoint, 40, timeout) 
+def JTAG_start_program_mode():
+	# Writing J will put the TIVA into program state
+	#To exit, you have to write 10 into it(as first
+	#character of trasnmission)
+	dev.write(inEndPoint, 'J', timeout)
+	inn = dev.read(outEndPoint, 4, timeout) 
 	if (inn[0] == 100):
-		print "JTAG Reg fn entered!!!"
-		print("Data returned is :")
+		print("Program mode entered")
 		print(inn)	
 	else:
 		print "Something is wrong with JTAG!!!"
 		sys.exit(1)
 	
+def JTAG_set_state(state):
+	cmd = array.array('B', [0,state])
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 4, timeout) 
+	if (inn[0] == 100):
+		if(inn[1] == state):
+			print("New State entered : " + str(state))	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
 
+def JTAG_chage_state(curr_state, next_state):
+	cmd = array.array('B', [1,curr_state,next_state])
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 4, timeout) 
+	if (inn[0] == 100):
+		if(inn[1] == next_state):
+			print("State Changed to : " + str(next_state))	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+def JTAG_shift_ir(ir_length, ir_addr):
+	a = [(ir_length >> i & 0xff)]
+	#b = [(ir_addr >> i & 0xff) for i in (0,8,16,24)]
+	cmd = array.array('B', [2] + a + ir_addr)
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 4, timeout) 
+	if (inn[0] == 100):
+		print("IR Shifted")
+		#print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+def JTAG_read_dr(dr_length, dr_num_bytes):
+	cmd = array.array('B', [3] + dr_length + dr_num_bytes)
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, dr_num_bytes[0]+5, timeout) 
+	if (inn[0] == 100):
+		print("DR Shifted. Data is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+def JTAG_write_dr(dr_length, data, data_expected, num_bytes):
+	cmd = array.array('B', [5] + dr_length + data_expected + num_bytes + data )
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, num_bytes[0]+5, timeout) 
+	if (inn[0] == 100):
+		print("DR Shifted. Data is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+		
+def JTAG_set_frequency(frequency):
 	
+	a = [(frequency >> i & 0xff) for i in (0,8,16,24)]
+	cmd = array.array('B', [5] + a)
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, dr_num_bytes[0]+5, timeout) 
+	if (inn[0] == 100):
+		print("New frequency set")
+		#print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+def JTAG_exit_program_mode():
+	cmd = '\x09'
+	dev.write(inEndPoint, cmd, timeout)
+	time.sleep(sleeptime)
+	inn = dev.read(outEndPoint, 4, timeout) 
+	if (inn[0] == 100):
+		print("Exited program mode")
+		print("TIVA in default mode now");
+		#print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
 dev.reset()
 
 try:
@@ -226,66 +310,23 @@ try:
 		print "Something is wrong. Wrong output from uC!!!"
 		sys.exit(1)
 	
-	dev.write(inEndPoint, 'P', timeout)
-	time.sleep(sleeptime)
-	inn = dev.read(outEndPoint, 16, timeout) 
-	if (inn[0] == 100):
-		print "JTAG fn entered!!!"
-		print("No of devices is :")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
+	#jtag
+	JTAG_start_program_mode()
 
-	dev.write(inEndPoint, 'I', timeout)
-	time.sleep(sleeptime)
-	inn = dev.read(outEndPoint, 40, timeout) 
-	if (inn[0] == 100):
-		print "JTAG ID fn entered!!!"
-		print("The device ID is :")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
+	#state set to IRSHIFT
+	JTAG_set_state(11)
 	
-	dev.write(inEndPoint, 'Q', timeout)
-	time.sleep(sleeptime)
-	inn = dev.read(outEndPoint, 40, timeout) 
-	if (inn[0] == 100):
-		print "JTAG Reg fn entered!!!"
-		print("No of devices is :")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
+	#write 6 to IR
+	JTAG_shift_ir(10, [6,0,0,0])
 
-	# Writing J will put the TIVA into program state
-	#To exit, you have to write 10 into it(as first
-	#character of trasnmission)
-	dev.write(inEndPoint, 'J', timeout)
-	time.sleep(sleeptime)
-	inn = dev.read(outEndPoint, 4, timeout) 
-	if (inn[0] == 100):
-		print("Program mode entered")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
+	#change state from IREXIT1 to DRSHIFT
+	JTAG_chage_state(12,4)
 
-	#dev.write(inEndPoint, 'M', timeout)
-	#time.sleep(sleeptime)
-	
-	dev.write(inEndPoint, '9', timeout)
-	time.sleep(sleeptime)
+	#read 32 bits + return char from DR
+	JTAG_shift_dr([32,0], [4])
 
-	#inn = dev.read(outEndPoint, 40, timeout) 
-	if (inn[0] == 100):
-		print("TIVA back in Default mode!!!")
-		print("Program mode exited!!!")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
+	#exit program state
+	JTAG_exit_program_mode()
 
 except:
 	for i in range(30):
