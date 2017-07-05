@@ -383,6 +383,5 @@ def parse_svf(file):
 					
 				if jtag_run_endstate != -1:
 					JTAG_chage_state(jtag_run_state, jtag_run_endstate)
-				
 		
 parse_svf(input_file)

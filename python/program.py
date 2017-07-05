@@ -42,7 +42,6 @@ else:
 	output_file = open(sys.argv[2],"w")
 	device = sys.argv[3]
 	output_file.write("Expected Output    Received Output   Remarks\n")
-	output_file.write("============================================\n")
 
 #----------------- Connecting to device -------------------------------
 print "Initiating connection with the device.."
@@ -199,107 +198,42 @@ def sendDUTInput(in_pins, out_pins, data_in):
 		dev.write(inEndPoint,chr(in_pins),timeout)
 		dev.write(inEndPoint,chr(out_pins),timeout)
 		dev.write(inEndPoint,data_in,timeout)
-
-def JTAG_start_program_mode():
-	# Writing J will put the TIVA into program state
-	#To exit, you have to write 10 into it(as first
-	#character of trasnmission)
-	dev.write(inEndPoint, 'J', timeout)
-	inn = dev.read(outEndPoint, 4, timeout) 
-	if (inn[0] == 100):
-		print("Program mode entered")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
-	
-def JTAG_set_state(state):
-	cmd = array.array('B', [0,state])
-	dev.write(inEndPoint, cmd, timeout)
-	inn = dev.read(outEndPoint, 4, timeout) 
-	if (inn[0] == 100):
-		if(inn[1] == state):
-			print("New State entered : " + str(state))	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
-
-def JTAG_chage_state(curr_state, next_state):
-	cmd = array.array('B', [1,curr_state,next_state])
-	dev.write(inEndPoint, cmd, timeout)
-	inn = dev.read(outEndPoint, 4, timeout) 
-	if (inn[0] == 100):
-		if(inn[1] == next_state):
-			print("State Changed to : " + str(next_state))	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
-
-def JTAG_shift_ir(ir_length, ir_addr):
-	a = [(ir_length >> i & 0xff)]
-	#b = [(ir_addr >> i & 0xff) for i in (0,8,16,24)]
-	cmd = array.array('B', [2] + a + ir_addr)
-	dev.write(inEndPoint, cmd, timeout)
-	inn = dev.read(outEndPoint, 4, timeout) 
-	if (inn[0] == 100):
-		print("IR Shifted")
-		#print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
-
-def JTAG_read_dr(dr_length, dr_num_bytes):
-	cmd = array.array('B', [3] + dr_length + dr_num_bytes)
-	dev.write(inEndPoint, cmd, timeout)
-	inn = dev.read(outEndPoint, dr_num_bytes[0]+5, timeout) 
-	if (inn[0] == 100):
-		print("DR Shifted. Data is :")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
 		
 		
-def JTAG_read_write_dr(dr_length, data, data_expected, num_bytes, eom):
-	a = [(dr_length >> i & 0xff) for i in (0,8)]
-	cmd = array.array('B', [5] + a + data_expected + num_bytes + data + eom )
-	print("Read Write DR command: " + str(cmd))
-	dev.write(inEndPoint, cmd, timeout)
-	inn = dev.read(outEndPoint, num_bytes[0]+5, timeout) 
-	if (inn[0] == 100):
-		print("DR Shifted. Data is :")
-		print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
 		
-def JTAG_set_frequency(frequency):
-	a = [(frequency >> i & 0xff) for i in (0,8,16,24)]
-	cmd = array.array('B', [5] + a)
-	print("Set frequency command: " + str(cmd))
-	dev.write(inEndPoint, cmd, timeout)
-	inn = dev.read(outEndPoint, dr_num_bytes[0]+5, timeout) 
-	if (inn[0] == 100):
-		print("New frequency set")
-		#print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
 
-def JTAG_exit_program_mode():
-	cmd = array.array('B', [9])
-	print("Exit program command: " + str(cmd))
-	dev.write(inEndPoint, cmd, timeout)
-	time.sleep(sleeptime)
-	inn = dev.read(outEndPoint, 4, timeout) 
-	if (inn[0] == 100):
-		print("Exited program mode")
-		print("TIVA in default mode now");
-		#print(inn)	
-	else:
-		print "Something is wrong with JTAG!!!"
-		sys.exit(1)
-		
+svf_commands = ["FREQUENCY", "TRST", "ENDDR", "ENDIR", "STATE", "SDR", "SIR", "RUNTEST"]
+svf_frequency_arguments = ["HZ"]
+svf_trst_arguments = ["ON", "OFF", "Z", "ABSENT"]
+svf_enddr_arguments = ["IRPAUSE", "DRPAUSE", "RESET", "IDLE"]
+svf_endir_arguments = ["IRPAUSE", "DRPAUSE", "RESET", "IDLE"]
+svf_state_path_arguments = ["RESET", "IDLE", "DRSELECT", "DRCAPTURE", "DRSHIFT", 
+	"DREXIT1", "DRPAUSE", "DREXIT2", "DRUPDATE", "IRSELECT", "IRCAPTURE", 
+	"IRSHIFT", "IREXIT1", "IRPAUSE", "IREXIT2", "IRUPDATE"]
+svf_state_stable_arguments = ["IRPAUSE", "DRPAUSE", "RESET", "IDLE"]
+svf_sdr_arguments = ["TDI", "TDO", "MASK", "SMASK"]
+svf_sir_arguments = ["TDI", "TDO", "MASK", "SMASK"]
+svf_runtest_arguments = ["TCK" , "ENDSTATE"]
+
+jtag_curr_state = 0
+reset_type = -1
+frequency = 0
+dr_end_state = svf_state_path_arguments.index("IDLE")
+ir_end_state = svf_state_path_arguments.index("IDLE")
+
+sdr_mask = ""
+sdr_smask = ""
+sdr_mask_bytearray = bytearray.fromhex('00')
+sdr_smask_bytearray = bytearray.fromhex('00')
+
+sir_mask = ""
+sir_smask = ""
+sir_mask_bytearray = bytearray.fromhex('00')
+sir_smask_bytearray = bytearray.fromhex('00')
+
+jtag_run_state = svf_state_path_arguments.index("IDLE")
+jtag_run_endstate = svf_state_path_arguments.index("IDLE")
+
 def parse_svf(file):
 	global sir_mask, sir_smask, sir_mask_bytearray, sdr_mask, sdr_smask, sdr_mask_bytearray, \
 	sir_smask_bytearray, sdr_smask_bytearray, jtag_curr_state, jtag_run_endstate
@@ -430,9 +364,9 @@ def parse_svf(file):
 						sdr_tdo = '0' + sdr_tdo					
 					sdr_tdo_bytearray = bytearray.fromhex(sdr_tdo)
 					sdr_tdo_bytearray= sdr_tdo_bytearray[::-1]
-					data_expected = [1]
+					data_expected = 1
 				else:
-					data_expected = [0]
+					data_expected = 0
 					
 				if sdr_tdi != "" :
 					if len(sdr_tdi) % 2 !=0 :
@@ -448,16 +382,29 @@ def parse_svf(file):
 						
 				#print("Masked TDO : " + str(sdr_tdo_masked))
 				#print("Masked TDI : " + str(sdr_tdi_masked))
-				
 				JTAG_chage_state(jtag_curr_state, svf_state_path_arguments.index("DRSHIFT"))
 				eom=0
-				while len(sdr_tdi_masked) > 100:
-					JTAG_read_write_dr(800, sdr_tdi_masked[:100], data_expected, [100], [eom])
-					sdr_tdi_masked = sdr_tdi_masked[100:]
-					sdr_tdo_masked = sdr_tdo_masked[100:]
-					sdr_length -= 800
+				count_left = round(len(sdr_tdi_masked)/50, 0)
+				while len(sdr_tdi_masked) > 50:
+					count_left -= 1
+					print("Count left : " + str(count_left))
+					if data_expected == 0:
+						JTAG_write_dr(400, sdr_tdi_masked[:50], [eom])
+					else :
+						sdo_read = JTAG_read_write_dr(400, sdr_tdi_masked[:50], [data_expected], [50], [eom])
+						for i in range(0,len(sdo_read)):
+							if sdr_tdo_masked[i] != sdo_read[i] :
+								print("Error in received data")
+						
+					sdr_tdi_masked = sdr_tdi_masked[50:]
+					sdr_tdo_masked = sdr_tdo_masked[50:]
+					sdr_length -= 400
+				
 				eom=1
-				JTAG_read_write_dr(sdr_length, sdr_tdi_masked, data_expected, [len(sdr_tdo_masked)], [eom])
+				if data_expected == 0 :
+					JTAG_write_dr(sdr_length, sdr_tdi_masked, [eom])
+				else :
+					JTAG_read_write_dr(sdr_length, sdr_tdi_masked, [data_expected], [len(sdr_tdo_masked)], [eom])
 				JTAG_chage_state(svf_state_path_arguments.index("DREXIT1"),dr_end_state)
 				jtag_curr_state = dr_end_state
 				
@@ -564,16 +511,161 @@ def parse_svf(file):
 				
 				if run_clk == 0 :
 					JTAG_chage_state(jtag_curr_state, jtag_run_state)
+					count_left = round(run_count/50000,0)
+					while run_count > 50000:
+						count_left -=1
+						print("Count left : " + str(count_left))
+						JTAG_runtest(50000)
+						run_count -= 50000
 					JTAG_runtest(run_count)
 					
 				if jtag_run_endstate != -1:
 					JTAG_chage_state(jtag_run_state, jtag_run_endstate)
+				
+
+def JTAG_start_program_mode():
+	# Writing J will put the TIVA into program state
+	#To exit, you have to write 10 into it(as first
+	#character of trasnmission)
+
+	dev.write(inEndPoint, 'J', timeout)
+	inn = dev.read(outEndPoint, 16, timeout) 
+	if (inn[0] == 100):
+		print("Program mode entered")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+	
+def JTAG_set_state(state):
+	cmd = array.array('B', [0,state])
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 16, timeout) 
+	if (inn[0] == 100):
+		if(inn[1] == state):
+			print("New State entered : " + str(state))	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+def JTAG_chage_state(curr_state, next_state):
+	cmd = array.array('B', [1,curr_state,next_state])
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 4, timeout) 
+	if (inn[0] == 100):
+		if(inn[1] == next_state):
+			print("State Changed to : " + str(next_state))	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+
+def JTAG_shift_ir(ir_length, ir_addr):
+	a = [(ir_length & 0xff)]
+	#b = [(ir_addr >> i & 0xff) for i in (0,8,16,24)]
+	cmd = array.array('B', [2] + a + ir_addr)
+	print(cmd)
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 16, timeout) 
+	if (inn[0] == 100):
+		print("IR Shifted")
+		#print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+		
+def JTAG_write_dr(dr_length, data, eom):
+	a = [(dr_length >> i & 0xff) for i in (0,8)]
+	cmd = array.array('B', [6] + a +  eom + data )
+	print("Write DR command: " + str(cmd))
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 16, timeout) 	
+	if (inn[0] == 100):
+		print("DR written to")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+	return(inn)
+
+def JTAG_read_dr(dr_length, dr_num_bytes):
+	cmd = array.array('B', [3] + dr_length + dr_num_bytes)
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, dr_num_bytes[0]+5, timeout) 
+	if (inn[0] == 100):
+		print("DR Shifted. Data is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+		
+		
+def JTAG_read_write_dr(dr_length, data, data_expected, num_bytes, eom):
+	a = [(dr_length >> i & 0xff) for i in (0,8)]
+	cmd = array.array('B', [5] + a + data_expected + num_bytes + eom + data)
+	print("Read Write DR command: " + str(cmd))
+	dev.write(inEndPoint, cmd, timeout)
+	if data_expected[0] == 1:
+		inn = dev.read(outEndPoint, num_bytes[0]+16, timeout) 
+	else :
+		inn = dev.read(outEndPoint, 2, timeout) 
+	
+	if (inn[0] == 100):
+		print("DR Shifted. Data is :")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+	return(inn[6:])
+	
+def JTAG_runtest(clock_num_times):
+	a = [(clock_num_times >> i & 0xff) for i in (0,8,16,24)]
+	cmd = array.array('B', [4] + a)
+	print("Runtest command: " + str(cmd))
+	dev.write(inEndPoint, cmd, timeout)
+	inn = dev.read(outEndPoint, 16, timeout) 
+	if (inn[0] == 100):
+		print("Runtest ran")
+		print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+	return(inn)
+		
+def JTAG_set_frequency(frequency):
+	a = [(frequency >> i & 0xff) for i in (0,8,16,24)]
+	cmd = array.array('B', [5] + a)
+	print("Set frequency command: " + str(cmd))
+	#dev.write(inEndPoint, cmd, timeout)
+	#inn = dev.read(outEndPoint, dr_num_bytes[0]+5, timeout) 
+	#if (inn[0] == 100):
+	#	print("New frequency set")
+	#	#print(inn)	
+	#else:
+	#	print "Something is wrong with JTAG!!!"
+	#	sys.exit(1)
+
+def JTAG_exit_program_mode():
+	cmd = array.array('B', [9])
+	print("Exit program command: " + str(cmd))
+	dev.write(inEndPoint, cmd, timeout)
+	time.sleep(sleeptime)
+	inn = dev.read(outEndPoint, 16, timeout) 
+	if (inn[0] == 100):
+		print("Exited program mode")
+		print("TIVA in default mode now");
+		#print(inn)	
+	else:
+		print "Something is wrong with JTAG!!!"
+		sys.exit(1)
+		
+
 
 dev.reset()
 
 try:
 	# defence against 'Ctrl+C' keyboard interrupt
 	# check for uC response
+	
 	dev.write(inEndPoint, 'T', timeout)
 	time.sleep(sleeptime)
 	inn = dev.read(outEndPoint, 16, timeout) 
@@ -582,9 +674,17 @@ try:
 	else:
 		print "Something is wrong. Wrong output from uC!!!"
 		sys.exit(1)
+		
 	
 	#jtag
 	JTAG_start_program_mode()
+	
+	JTAG_set_state(0)
+	JTAG_set_state(11)
+	JTAG_shift_ir(32, [255,255,255,255])
+	JTAG_chage_state(12,4)
+	JTAG_write_dr(32, [0,0,0,0], [1])
+	JTAG_read_write_dr(32, [85,85,85,85], [1], [4], [1])
 
 	#state set to IRSHIFT
 	JTAG_set_state(11)
@@ -596,7 +696,28 @@ try:
 	JTAG_chage_state(12,4)
 
 	#read 32 bits + return char from DR
-	JTAG_shift_dr([32,0], [4])
+	JTAG_read_dr([32,0], [4])
+	
+
+	
+	
+	print(time.ctime())
+	#parse_svf(input_file)
+	print(time.ctime())
+	
+	#state set to IRSHIFT
+	JTAG_set_state(11)
+	
+	#write 6 to IR
+	JTAG_shift_ir(10, [7,0,0,0])
+
+	#change state from IREXIT1 to DRSHIFT
+	JTAG_chage_state(12,4)
+
+	#read 32 bits + return char from DR
+	JTAG_read_dr([32,0], [4])
+	
+	JTAG_set_state(0)
 
 	#exit program state
 	JTAG_exit_program_mode()
