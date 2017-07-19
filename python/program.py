@@ -28,7 +28,7 @@ print"Scan chain v3.0\nWadhwani Electronics Laboratory, IIT Bombay\n"
 
 
 # Check for the proper input format
-if len(sys.argv) != 4 :
+if len(sys.argv) != 2 :
 	sys.stdout.write("Error : The correct format is sudo python scan.py <input file>")
 	sys.stdout.write(" <output file> <ptx/tiva>\n")
   	sys.stdout.write("<input file>: Input file with all the commands.\n")
@@ -39,9 +39,9 @@ if len(sys.argv) != 4 :
 	sys.exit(1)
 else:
 	input_file = open(sys.argv[1],"r")
-	output_file = open(sys.argv[2],"w")
-	device = sys.argv[3]
-	output_file.write("Expected Output    Received Output   Remarks\n")
+	#output_file = open(sys.argv[2],"w")
+	#device = sys.argv[3]
+	#output_file.write("Expected Output    Received Output   Remarks\n")
 
 #----------------- Connecting to device -------------------------------
 print "Initiating connection with the device.."
@@ -52,20 +52,20 @@ success_checks = 0
 success_achieved = 0
 outvector_verify = 0
 
-if (device == 'ptx'):
+#if (device == 'ptx'):
   ## Check if pid and vid are as follows using the command "lsusb"
-	productId = 0x2402
-	vendorId = 0x03eb
-	inEndPoint = 0x02
-	outEndPoint = 0x81
-elif (device == 'tiva'):
-	productId = 0x0003
-	vendorId = 0x1cbe
-	inEndPoint = 0x01
-	outEndPoint = 0x81
-else:
-	print "Error: Invalid device name. Valid device names: ptx/tiva"
-	sys.exit(1)
+#	productId = 0x2402
+#	vendorId = 0x03eb
+#	inEndPoint = 0x02
+#	outEndPoint = 0x81
+#elif (device == 'tiva'):
+productId = 0x0003
+vendorId = 0x1cbe
+inEndPoint = 0x01
+outEndPoint = 0x81
+#else:
+#	print "Error: Invalid device name. Valid device names: ptx/tiva"
+#	sys.exit(1)
 
 # find our device
 dev = usb.core.find(idVendor=vendorId, idProduct = productId)
@@ -337,11 +337,11 @@ def parse_svf(file):
 						sdr_tdo = args[args.index("TDO") + 1][1:-1]
 				if len(line) < 500:
 					print(line)
-					print("Length " + str(sdr_length))
-					print("TDI " + str(sdr_tdi))
-					print("TDO " + str(sdr_tdo))
-					print("Mask " + str(sdr_mask))
-					print("Smask" + str(sdr_smask))
+					#print("Length " + str(sdr_length))
+					#print("TDI " + str(sdr_tdi))
+					#print("TDO " + str(sdr_tdo))
+					#print("Mask " + str(sdr_mask))
+					#print("Smask" + str(sdr_smask))
 				else:
 					print("Length " + str(sdr_length))
 					print("line too long")
@@ -407,6 +407,7 @@ def parse_svf(file):
 					JTAG_read_write_dr(sdr_length, sdr_tdi_masked, [data_expected], [len(sdr_tdo_masked)], [eom])
 				JTAG_chage_state(svf_state_path_arguments.index("DREXIT1"),dr_end_state)
 				jtag_curr_state = dr_end_state
+				#jtag_curr_state = svf_state_path_arguments.index("DREXIT1")
 				
 			elif command == "SIR" :
 				
@@ -431,11 +432,11 @@ def parse_svf(file):
 					if "TDO" in args:
 						sir_tdo = args[args.index("TDO") + 1][1:-1]
 				print(line)
-				print("Length " + str(sir_length))
-				print("TDI " + str(sir_tdi))
-				print("TDO" + str(sir_tdo))
-				print("Mask " + str(sir_mask))
-				print("Smask" + str(sir_smask))
+				#print("Length " + str(sir_length))
+				#print("TDI " + str(sir_tdi))
+				#print("TDO" + str(sir_tdo))
+				#print("Mask " + str(sir_mask))
+				#print("Smask" + str(sir_smask))
 				
 				if sir_mask!= "" :
 					if len(sir_mask) % 2 !=0 :
@@ -470,13 +471,14 @@ def parse_svf(file):
 				for i in range(0,len(sir_tdi_bytearray)):
 					sir_tdi_masked.append(sir_tdi_bytearray[i])
 						
-				print("Masked TD0 : " + str(sir_tdo_masked))
-				print("Masked TDI : " + str(sir_tdi_masked))
+				#print("Masked TD0 : " + str(sir_tdo_masked))
+				#print("Masked TDI : " + str(sir_tdi_masked))
 				
 				JTAG_chage_state(jtag_curr_state, svf_state_path_arguments.index("IRSHIFT"))
 				JTAG_shift_ir(sir_length, sir_tdi_masked)
 				JTAG_chage_state(svf_state_path_arguments.index("IREXIT1"),ir_end_state)
 				jtag_curr_state = ir_end_state
+				#jtag_curr_state = svf_state_path_arguments.index("IREXIT1")
 			
 			elif command == "RUNTEST" :
 				run_count = 0
@@ -502,12 +504,12 @@ def parse_svf(file):
 					if "ENDSTATE" in args:
 						jtag_run_endstate = svf_state_path_arguments.index(args[args.index("ENDSTATE") + 1])
 				print(line)	
-				print("Run State " + str(jtag_run_state))
-				print("Run Count " + str(run_count))
-				print("Run Clock " + str(run_clk))
-				print("Min TIme " + str(min_time))
-				print("Max Time " + str(max_time))
-				print("End State " + str(jtag_run_endstate))	
+				#print("Run State " + str(jtag_run_state))
+				#print("Run Count " + str(run_count))
+				#print("Run Clock " + str(run_clk))
+				#print("Min TIme " + str(min_time))
+				#print("Max Time " + str(max_time))
+				#print("End State " + str(jtag_run_endstate))	
 				
 				if run_clk == 0 :
 					JTAG_chage_state(jtag_curr_state, jtag_run_state)
@@ -543,7 +545,7 @@ def JTAG_set_state(state):
 	inn = dev.read(outEndPoint, 16, timeout) 
 	if (inn[0] == 100):
 		if(inn[1] == state):
-			print("New State entered : " + str(state))	
+			print("New State entered : " + str(state) + "\n")	
 	else:
 		print "Something is wrong with JTAG!!!"
 		sys.exit(1)
@@ -554,7 +556,7 @@ def JTAG_chage_state(curr_state, next_state):
 	inn = dev.read(outEndPoint, 4, timeout) 
 	if (inn[0] == 100):
 		if(inn[1] == next_state):
-			print("State Changed to : " + str(next_state))	
+			print("State Changed from " + str(curr_state) + " to " + str(next_state) + "\n")	
 	else:
 		print "Something is wrong with JTAG!!!"
 		sys.exit(1)
@@ -562,12 +564,12 @@ def JTAG_chage_state(curr_state, next_state):
 def JTAG_shift_ir(ir_length, ir_addr):
 	a = [(ir_length & 0xff)]
 	#b = [(ir_addr >> i & 0xff) for i in (0,8,16,24)]
-	cmd = array.array('B', [2] + a + ir_addr)
+	cmd = array.array('B', [2] + a + ir_addr + [0,0])
 	print(cmd)
 	dev.write(inEndPoint, cmd, timeout)
 	inn = dev.read(outEndPoint, 16, timeout) 
 	if (inn[0] == 100):
-		print("IR Shifted")
+		print("IR Shifted\n")
 		#print(inn)	
 	else:
 		print "Something is wrong with JTAG!!!"
@@ -580,7 +582,7 @@ def JTAG_write_dr(dr_length, data, eom):
 	dev.write(inEndPoint, cmd, timeout)
 	inn = dev.read(outEndPoint, 16, timeout) 	
 	if (inn[0] == 100):
-		print("DR written to")
+		print("DR written to\n")
 		print(inn)	
 	else:
 		print "Something is wrong with JTAG!!!"
@@ -594,6 +596,7 @@ def JTAG_read_dr(dr_length, dr_num_bytes):
 	if (inn[0] == 100):
 		print("DR Shifted. Data is :")
 		print(inn)	
+		print("\n")
 	else:
 		print "Something is wrong with JTAG!!!"
 		sys.exit(1)
@@ -612,6 +615,7 @@ def JTAG_read_write_dr(dr_length, data, data_expected, num_bytes, eom):
 	if (inn[0] == 100):
 		print("DR Shifted. Data is :")
 		print(inn)	
+		print("\n")
 	else:
 		print "Something is wrong with JTAG!!!"
 		sys.exit(1)
@@ -626,6 +630,7 @@ def JTAG_runtest(clock_num_times):
 	if (inn[0] == 100):
 		print("Runtest ran")
 		print(inn)	
+		print("\n")
 	else:
 		print "Something is wrong with JTAG!!!"
 		sys.exit(1)
@@ -675,22 +680,17 @@ try:
 		print "Something is wrong. Wrong output from uC!!!"
 		sys.exit(1)
 		
+
 	
 	#jtag
 	JTAG_start_program_mode()
-	
-	JTAG_set_state(0)
-	JTAG_set_state(11)
-	JTAG_shift_ir(32, [255,255,255,255])
-	JTAG_chage_state(12,4)
-	JTAG_write_dr(32, [0,0,0,0], [1])
-	JTAG_read_write_dr(32, [85,85,85,85], [1], [4], [1])
 
+	JTAG_set_state(1)
 	#state set to IRSHIFT
-	JTAG_set_state(11)
+	JTAG_chage_state(1,11)
 	
 	#write 6 to IR
-	JTAG_shift_ir(10, [6,0,0,0])
+	JTAG_shift_ir(10, [6,0])
 
 	#change state from IREXIT1 to DRSHIFT
 	JTAG_chage_state(12,4)
@@ -699,25 +699,23 @@ try:
 	JTAG_read_dr([32,0], [4])
 	
 
+	JTAG_set_state(0)
 	
-	
+	print("Parsing SVF File \n\n\n")
 	print(time.ctime())
-	#parse_svf(input_file)
+	
+	parse_svf(input_file)
 	print(time.ctime())
+	print("Parsed SVF File \n\n\n")
 	
-	#state set to IRSHIFT
-	JTAG_set_state(11)
+	print(jtag_curr_state)
 	
-	#write 6 to IR
-	JTAG_shift_ir(10, [7,0,0,0])
-
-	#change state from IREXIT1 to DRSHIFT
-	JTAG_chage_state(12,4)
+	#JTAG_chage_state(ir_end_state,11)
+	#JTAG_chage_state(jtag_curr_state,4)
 
 	#read 32 bits + return char from DR
-	JTAG_read_dr([32,0], [4])
+	#JTAG_read_dr([32,0], [4])
 	
-	JTAG_set_state(0)
 
 	#exit program state
 	JTAG_exit_program_mode()
